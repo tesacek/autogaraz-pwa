@@ -22,7 +22,6 @@ import {
   Zap,
   Timer,
   Wind,
-  Fuel,
   GitCompare,
   X,
   CheckSquare,

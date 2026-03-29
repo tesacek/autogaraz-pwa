@@ -22,7 +22,7 @@ import {
   Smartphone,
   Star,
   Car,
-  Trash2,
+
 } from 'lucide-react'
 import { useApp } from '../context/AppContext'
 

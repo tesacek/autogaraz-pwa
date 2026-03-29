@@ -10,14 +10,14 @@
 // Komponenty přistupují k tomuto stavu přes custom hook useApp()
 // Real-time Firestore listenery zajišťují okamžitou synchronizaci
 
-import React, {
+import {
   createContext,
   useContext,
   useState,
   useEffect,
   useCallback,
-  type ReactNode,
-} from 'react'
+  type ReactNode
+} from "react"
 
 import type { SavedCar, Theme } from '../types'
 import {
@@ -50,14 +50,42 @@ interface AppContextValue {
   // Favorites
   favorites: SavedCar[]
   favoritesLoading: boolean
-  addFavorite: (car: Omit<SavedCar, 'id' | 'addedAt'>) => Promise<void>
+  addFavorite: (car: {
+    makeId: string;
+    makeDisplay: string;
+    modelName: string;
+    modelYear: string;
+    trimName: string;
+    modelId: string;
+    powerPs: number | undefined;
+    powerKw: number | undefined;
+    engineCc: number | undefined;
+    fuelType: string | undefined;
+    topSpeedKph: number | undefined;
+    acceleration: number | undefined;
+    consumptionL100km: number | undefined
+  }) => Promise<void>
   removeFavorite: (id: string) => Promise<void>
   isFavorite: (modelId: string) => boolean
 
   // Garage
   garageCars: SavedCar[]
   garageLoading: boolean
-  addToMyGarage: (car: Omit<SavedCar, 'id' | 'addedAt'>) => Promise<void>
+  addToMyGarage: (car: {
+    makeId: string;
+    makeDisplay: string;
+    modelName: string;
+    modelYear: string;
+    trimName: string;
+    modelId: string;
+    powerPs: number | undefined;
+    powerKw: number | undefined;
+    engineCc: number | undefined;
+    fuelType: string | undefined;
+    topSpeedKph: number | undefined;
+    acceleration: number | undefined;
+    consumptionL100km: number | undefined
+  }) => Promise<void>
   removeFromMyGarage: (id: string) => Promise<void>
   moveCarToGarage: (car: SavedCar) => Promise<void>
   isInGarage: (modelId: string) => boolean
@@ -95,7 +123,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       html.classList.remove('dark')
     }
     // Uložíme do localStorage pro persistence
-    localStorage.setItem('autogaraz-theme', theme)
+    if (typeof theme === "string") {
+      localStorage.setItem('autogaraz-theme', theme)
+    }
   }, [theme])
 
   const toggleTheme = useCallback(() => {

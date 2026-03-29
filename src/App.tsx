@@ -96,7 +96,7 @@ function NotFound() {
         <h2 className="text-white font-semibold text-xl">Stránka nenalezena</h2>
         <p className="text-white/40 text-sm mt-1">Tato stránka neexistuje.</p>
       </div>
-      <a href="/" className="btn-primary">
+      <a href="/public" className="btn-primary">
         Zpět domů
       </a>
     </div>

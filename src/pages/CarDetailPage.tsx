@@ -20,7 +20,6 @@ import {
   Star,
   Car,
   Zap,
-  Gauge,
   Wind,
   Weight,
   Maximize2,
@@ -65,7 +64,7 @@ function engineSize(cc: string | undefined): string {
 
 export function CarDetailPage() {
   const { modelId } = useParams<{ modelId: string }>()
-  const { isFavorite, isInGarage, addFavorite, removeFavorite, addToMyGarage } = useApp()
+  const { isFavorite, isInGarage, addFavorite, addToMyGarage } = useApp()
 
   const [vehicle, setVehicle] = useState<CarVehicle | null>(null)
   const [loading, setLoading] = useState(true)

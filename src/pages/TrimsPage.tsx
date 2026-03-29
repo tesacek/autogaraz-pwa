@@ -83,18 +83,27 @@ export function TrimsPage() {
           <p className="text-xs font-mono text-white/30 uppercase tracking-widest mb-2">
             Vyberte výbavu
           </p>
-          {trims.map((trim, index) => {
-            const powerPs = parseFloat(trim.model_engine_power_ps || '0')
+          {trims.map(({
+                        model_body,
+                        model_engine_cc,
+                        model_engine_fuel,
+                        model_engine_power_ps,
+                        model_id,
+                        model_lkm_hwy,
+                        model_lkm_mixed,
+                        model_trim
+                      }, index) => {
+            const powerPs = parseFloat(model_engine_power_ps || '0')
             const powerKw = psToKw(powerPs)
             // Zkusíme přímou hodnotu nebo přepočítáme z MPG
-            const consumption = trim.model_lkm_mixed
-              ? parseFloat(trim.model_lkm_mixed)
-              : mpgToL100km(trim.model_lkm_hwy || '0')
+            const consumption = model_lkm_mixed
+              ? parseFloat(model_lkm_mixed)
+              : mpgToL100km(model_lkm_hwy || '0')
 
             return (
               <button
-                key={trim.model_id || index}
-                onClick={() => navigate(`/vehicle/${trim.model_id}`)}
+                key={model_id || index}
+                onClick={() => navigate(`/vehicle/${model_id}`)}
                 className="w-full card-hover p-4 text-left group"
                 style={{ animationDelay: `${index * 0.03}s` }}
               >
@@ -102,11 +111,11 @@ export function TrimsPage() {
                   <div className="flex-1 min-w-0">
                     {/* Název výbavy */}
                     <h3 className="font-semibold text-white group-hover:text-accent-gold transition-colors text-sm leading-snug">
-                      {trim.model_trim || 'Základní výbava'}
+                      {model_trim || 'Základní výbava'}
                     </h3>
                     {/* Typ karoserie + palivo */}
                     <p className="text-xs text-white/30 mt-0.5">
-                      {trim.model_body || '—'} · {trim.model_engine_fuel || '—'}
+                      {model_body || '—'} · {model_engine_fuel || '—'}
                     </p>
 
                     {/* Mini spec badges */}
@@ -117,9 +126,9 @@ export function TrimsPage() {
                           {powerPs} PS / {powerKw} kW
                         </span>
                       )}
-                      {trim.model_engine_cc && (
+                      {model_engine_cc && (
                         <span className="text-xs text-white/30 font-mono">
-                          {Math.round(parseInt(trim.model_engine_cc) / 100) / 10}L
+                          {Math.round(parseInt(model_engine_cc) / 100) / 10}L
                         </span>
                       )}
                       {consumption && consumption > 0 && (

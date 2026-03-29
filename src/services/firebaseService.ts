@@ -44,17 +44,6 @@ import type { SavedCar } from '../types'
 // ─────────────────────────────────────────────────────────────────────────────
 // POMOCNÉ FUNKCE
 // ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * Generuje unikátní klíč pro auto na základě make+model+year+trim
- * Slouží pro kontrolu duplicit
- */
-function carKey(car: Omit<SavedCar, 'id' | 'addedAt'>): string {
-  return `${car.makeId}__${car.modelName}__${car.modelYear}__${car.trimName}`
-    .toLowerCase()
-    .replace(/\s+/g, '-')
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
 // FAVORITES (OBLÍBENÁ) OPERACE
 // ─────────────────────────────────────────────────────────────────────────────

@@ -26,19 +26,19 @@ import { getAnalytics } from 'firebase/analytics'
 // ⚠️ NAHRAĎ SVÝMI HODNOTAMI Z FIREBASE CONSOLE ⚠️
 // Tyto hodnoty jsou veřejné (API key pro Firebase je bezpečný na klientu),
 // bezpečnost zajišťují Firestore Security Rules
+// Import the functions you need from the SDKs you need
+// Your web app's Firebase configuration
 const firebaseConfig = {
-  apiKey: "AIzaSyXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
-  authDomain: "autogaraz-xxxxx.firebaseapp.com",
-  projectId: "autogaraz-xxxxx",
-  storageBucket: "autogaraz-xxxxx.appspot.com",
-  messagingSenderId: "000000000000",
-  appId: "1:000000000000:web:xxxxxxxxxxxxxxxxxxxxxxxx",
-  measurementId: "G-XXXXXXXXXX"
-}
+  apiKey: "AIzaSyAbx7X--Gi2DkJ6bLjqYBqTFk2EbW2WgV4",
+  authDomain: "autogaraz-pwa.firebaseapp.com",
+  projectId: "autogaraz-pwa",
+  storageBucket: "autogaraz-pwa.firebasestorage.app",
+  messagingSenderId: "466247070533",
+  appId: "1:466247070533:web:ac8794714dcb2c3ba3442c"
+};
 
-// Inicializace Firebase aplikace
-// initializeApp vrátí singleton – volání vícekrát je bezpečné
-const app = initializeApp(firebaseConfig)
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
 
 // Inicializace Firestore databáze
 // getFirestore vrátí referenci na Firestore instanci
