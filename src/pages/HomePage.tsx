@@ -266,3 +266,4 @@ function BrandCard({ brand, index, onClick }: BrandCardProps) {
     </button>
   )
 }
+
