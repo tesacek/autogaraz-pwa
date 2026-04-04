@@ -25,13 +25,17 @@ export default defineConfig({
 
   server: {
     proxy: {
-      // Všechna volání na /api/carquery se přepošlou na CarQuery API
-      // Vite proxy automaticky přidá správné CORS hlavičky
-      '/api/carquery': {
-        target: 'https://www.carqueryapi.com',
+      // Firebase Functions emulátor běží na portu 5001
+      // Format: http://localhost:5001/{projectId}/{region}/{functionName}
+      '/api/cars': {
+        target: 'http://localhost:5001/autogaraz-pwa/europe-west1/cars',
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api\/carquery/, '/api/0.3'),
-        secure: true,
+        rewrite: (path) => path.replace(/^\/api\/cars/, ''),
+      },
+      '/api/carImage': {
+        target: 'http://localhost:5001/autogaraz-pwa/europe-west1/carImage',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/carImage/, ''),
       },
     },
   },
