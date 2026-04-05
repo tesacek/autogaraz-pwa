@@ -5,7 +5,8 @@ import {
   Star, Car, Zap, Wind, Weight, Maximize2,
   Fuel, Timer, Settings, ChevronDown, ChevronUp,
 } from 'lucide-react'
-import { getVehicle, mpgToL100km, psToKw, getBrandImageUrl } from '../services/carQueryApi'
+import { getVehicle } from '../services/carQueryApi'
+import { getModelImage } from '../services/staticCarData'
 import type { CarVehicle } from '../types'
 import { PageHeader, PageLoading, ErrorState, SpecRow, SectionTitle } from '../components/ui'
 import { useApp } from '../context/AppContext'
@@ -28,6 +29,18 @@ function engineSize(cc: string | undefined): string {
   return `${(ccNum / 1000).toFixed(1)} L`
 }
 
+function mpgToL100km(mpg: string | number): number | null {
+  const val = typeof mpg === 'string' ? parseFloat(mpg) : mpg
+  if (!val || isNaN(val) || val <= 0) return null
+  return Math.round((235.215 / val) * 10) / 10
+}
+
+function psToKw(ps: string | number): number | null {
+  const val = typeof ps === 'string' ? parseFloat(ps) : ps
+  if (!val || isNaN(val) || val <= 0) return null
+  return Math.round(val * 0.7355)
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // CAR DETAIL PAGE
 // ─────────────────────────────────────────────────────────────────────────────
@@ -39,7 +52,6 @@ export function CarDetailPage() {
   const [vehicle, setVehicle] = useState<CarVehicle | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [imgError, setImgError] = useState(false)
   const [showAllSpecs, setShowAllSpecs] = useState(false)
   const [actionLoading, setActionLoading] = useState(false)
 
@@ -87,15 +99,13 @@ export function CarDetailPage() {
       ? parseFloat(vehicle.model_lkm_city)
       : null
 
-  const consumptionHwy = vehicle.model_lkm_hwy
-      ? (parseFloat(vehicle.model_lkm_hwy) > 10
-          ? parseFloat(vehicle.model_lkm_hwy)
-          : mpgToL100km(vehicle.model_lkm_hwy))
-      : null
+  // model_lkm_hwy ze statických dat je vždy v l/100km
+  // Z CarQuery API může být v MPG (obvykle < 10) – přepočítáme
+  const lkmHwyRaw = vehicle.model_lkm_hwy ? parseFloat(vehicle.model_lkm_hwy) : null
+  const consumptionHwy = lkmHwyRaw === null ? null
+      : (lkmHwyRaw > 30 ? mpgToL100km(lkmHwyRaw) : lkmHwyRaw)  // >30 = MPG, jinak l/100km
 
-  const carImage = imgError
-      ? `https://source.unsplash.com/800x500/?${encodeURIComponent(vehicle.model_make_display + ' car')}`
-      : getBrandImageUrl(vehicle.model_make_id || '', vehicle.model_name)
+  const carImage = getModelImage(vehicle.model_make_id || '', vehicle.model_name)
 
   const favActive = isFavorite(vehicle.model_id)
   const garageActive = isInGarage(vehicle.model_id)
@@ -159,7 +169,6 @@ export function CarDetailPage() {
               src={carImage}
               alt={`${vehicle.model_make_display} ${vehicle.model_name}`}
               className="w-full h-52 object-cover"
-              onError={() => setImgError(true)}
               loading="lazy"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
@@ -308,7 +317,7 @@ export function CarDetailPage() {
                     <SpecRow label="Ventily / válec" value={vehicle.model_engine_valves_per_cyl} />
                     <SpecRow label="Vrtání" value={vehicle.model_engine_bore_mm} unit="mm" />
                     <SpecRow label="Zdvih" value={vehicle.model_engine_stroke_mm} unit="mm" />
-                    <SpecRow label="Model ID" value={vehicle.model_id} />
+                    {/* Model ID skryto pro koncové uživatele */}
                     <SpecRow label="Rok" value={vehicle.model_year} />
                   </div>
                 </div>
