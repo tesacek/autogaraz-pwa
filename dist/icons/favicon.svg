@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <!-- AutoGaráž favicon – stylizovaný automobil s zlatou barvou -->
+  <rect width="100" height="100" rx="22" fill="#0a0a0a"/>
+  <!-- Karoserie auta -->
+  <rect x="12" y="52" width="76" height="22" rx="4" fill="#c9a84c"/>
+  <!-- Střecha / kabina -->
+  <path d="M28 52 L34 32 L66 32 L72 52 Z" fill="#c9a84c"/>
+  <!-- Okna -->
+  <path d="M36 50 L40 36 L60 36 L64 50 Z" fill="#0a0a0a" opacity="0.6"/>
+  <!-- Kola -->
+  <circle cx="28" cy="76" r="10" fill="#1e1e1e" stroke="#c9a84c" stroke-width="2.5"/>
+  <circle cx="72" cy="76" r="10" fill="#1e1e1e" stroke="#c9a84c" stroke-width="2.5"/>
+  <circle cx="28" cy="76" r="4" fill="#c9a84c"/>
+  <circle cx="72" cy="76" r="4" fill="#c9a84c"/>
+  <!-- Světla -->
+  <rect x="14" y="56" width="10" height="5" rx="2" fill="#ffe0a0" opacity="0.9"/>
+  <rect x="76" y="56" width="10" height="5" rx="2" fill="#ff6060" opacity="0.9"/>
+</svg>
