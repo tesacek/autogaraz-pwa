@@ -1,174 +1,141 @@
-// src/types/index.ts
-// Centrální TypeScript typy pro celou aplikaci AutoGaráž
-// Tato vrstva zajišťuje type safety napříč komponentami, API voláními a Firebase operacemi
+import * as functions from 'firebase-functions/v1'
+import fetch from 'node-fetch'
 
-// ═══════════════════════════════════════════════
-// CARQUERY API TYPY
-// Typy odpovídají struktuře odpovědí z CarQuery API
-// Dokumentace: http://www.carqueryapi.com/documentation/
-// ═══════════════════════════════════════════════
+const NHTSA = 'https://vpic.nhtsa.dot.gov/api/vehicles'
 
-/** Výrobce automobilu (Mercedes-Benz, BMW, Audi) */
-export interface CarMake {
-  make_id: string           // Interní ID, např. "mercedes-benz"
-  make_display: string      // Zobrazovaný název, např. "Mercedes-Benz"
-  make_is_common: string    // "1" pokud je běžná značka
-  make_country: string      // Země původu, např. "Germany"
+async function nhtsa<T>(path: string): Promise<T> {
+  const url = `${NHTSA}${path}${path.includes('?') ? '&' : '?'}format=json`
+  const res = await fetch(url)
+  if (!res.ok) throw new Error(`NHTSA ${res.status}`)
+  return res.json() as Promise<T>
 }
 
-/** Model automobilu (A-Class, 3 Series, A4 atd.) */
-export interface CarModel {
-  model_name: string        // Interní název modelu, např. "A-Class"
-  model_make_id: string     // ID výrobce
-  model_trim?: string       // Varianta/výbava
-  model_year?: string       // Rok modelu
+export const cars = functions
+    .region('europe-west1')
+    .https.onRequest(async (req, res) => {
+      res.set('Access-Control-Allow-Origin', '*')
+      res.set('Access-Control-Allow-Methods', 'GET, OPTIONS')
+      if (req.method === 'OPTIONS') { res.status(204).send(''); return }
+
+      const { cmd, make, model, year } = req.query as Record<string, string>
+
+      try {
+        switch (cmd) {
+
+          case 'getModels': {
+            if (!make) { res.status(400).json({ error: 'make required' }); return }
+            const currentYear = new Date().getFullYear()
+            const data = await nhtsa<{ Results: Array<{ Model_Name: string }> }>(
+                `/GetModelsForMakeYear/make/${encodeURIComponent(make)}/modelyear/${currentYear}`
+            )
+            const seen = new Set<string>()
+            const models = data.Results
+                .filter(m => { if (seen.has(m.Model_Name)) return false; seen.add(m.Model_Name); return true })
+                .map(m => ({ model_name: m.Model_Name, model_make_id: make.toLowerCase() }))
+                .sort((a, b) => a.model_name.localeCompare(b.model_name))
+            res.json({ Models: models }); return
+          }
+
+          case 'getYears': {
+            if (!make || !model) { res.status(400).json({ error: 'make and model required' }); return }
+            const currentYear = new Date().getFullYear()
+            const checks = []
+            for (let y = currentYear; y >= 2000; y--) {
+              checks.push(
+                  nhtsa<{ Results: Array<{ Model_Name: string }> }>(
+                      `/GetModelsForMakeYear/make/${encodeURIComponent(make)}/modelyear/${y}`
+                  ).then(d => ({
+                    year: y,
+                    exists: d.Results.some(r => r.Model_Name?.toLowerCase() === model.toLowerCase()),
+                  })).catch(() => ({ year: y, exists: false }))
+              )
+            }
+            const results = await Promise.all(checks)
+            const years = results.filter(r => r.exists).map(r => r.year)
+            res.json({ Years: years }); return
+          }
+
+          case 'getTrims': {
+            if (!make || !model || !year) { res.status(400).json({ error: 'make, model, year required' }); return }
+            const data = await nhtsa<{ Results: Array<{ Model_Name: string }> }>(
+                `/GetModelsForMakeYear/make/${encodeURIComponent(make)}/modelyear/${encodeURIComponent(year)}`
+            )
+            const exists = data.Results.some(r => r.Model_Name?.toLowerCase() === model.toLowerCase())
+            if (!exists) { res.json({ Trims: [] }); return }
+            const trimId = `${make.toLowerCase().replace(/\s+/g, '-')}_${model.toLowerCase().replace(/\s+/g, '-')}_${year}_0`
+            res.json({
+              Trims: [{
+                model_id: trimId,
+                model_make_id: make.toLowerCase(),
+                model_name: model,
+                model_trim: 'Základní výbava',
+                model_year: year,
+              }]
+            }); return
+          }
+
+          case 'getVehicle': {
+            if (!make || !model || !year) { res.status(400).json({ error: 'make, model, year required' }); return }
+            const key = `${make.toLowerCase()}|${model.toLowerCase()}|${year}`
+            const spec = VEHICLE_SPECS[key] ?? makeDefaultSpec(make, model, year)
+            res.json({ Vehicle: spec }); return
+          }
+
+          default:
+            res.status(400).json({ error: `Unknown cmd: ${cmd}` })
+        }
+      } catch (err: unknown) {
+        res.status(500).json({ error: err instanceof Error ? err.message : String(err) })
+      }
+    })
+
+// ─── SPECIFIKACE ─────────────────────────────────────────────────────────────
+
+function makeDefaultSpec(make: string, model: string, year: string) {
+  return {
+    model_make_id: make.toLowerCase().replace(/\s+/g, '-'),
+    model_make_display: make,
+    model_name: model,
+    model_year: year,
+    model_trim: 'Standard',
+    model_engine_power_ps: '',
+    model_lkm_mixed: '',
+    model_lkm_hwy: '',
+    model_lkm_city: '',
+    model_engine_fuel: 'Benzín',
+    model_engine_cc: '',
+    model_top_speed_kph: '',
+    model_0_to_100_kph: '',
+    model_drive: '',
+    model_transmission_type: '',
+    model_seats: '5',
+    model_doors: '4',
+  }
 }
 
-/** Dostupné roky pro daný model */
-export interface CarYears {
-  min_year: string          // Nejstarší dostupný rok
-  max_year: string          // Nejnovější dostupný rok
+type Spec = ReturnType<typeof makeDefaultSpec>
+
+function s(make: string, model: string, year: string, overrides: Partial<Spec>): Spec {
+  return { ...makeDefaultSpec(make, model, year), ...overrides }
 }
 
-/** Výbava/varianta vozu */
-export interface CarTrim {
-  model_id: string
-  model_make_id: string
-  model_name: string
-  model_trim: string        // Název výbavy, např. "AMG Line"
-  model_year: string
-  model_body: string        // Karoserie: Sedan, SUV, Coupe...
-  model_engine_position: string
-  model_engine_cc: string   // Objem motoru v cc
-  model_engine_cyl: string  // Počet válců
-  model_engine_type: string // Typ motoru: Inline, V, Boxer
-  model_engine_valves_per_cyl: string
-  model_engine_power_ps: string    // Výkon v PS (koně)
-  model_engine_power_rpm: string   // Otáčky při max výkonu
-  model_engine_torque_nm: string   // Točivý moment Nm
-  model_engine_torque_rpm: string  // Otáčky při max točivém momentu
-  model_engine_bore_mm: string
-  model_engine_stroke_mm: string
-  model_engine_compression: string // Kompresní poměr
-  model_engine_fuel: string        // Typ paliva: Gasoline, Diesel, Electric
-  model_top_speed_kph: string      // Max rychlost km/h
-  model_0_to_100_kph: string       // Zrychlení 0-100 km/h
-  model_drive: string              // Pohon: AWD, FWD, RWD
-  model_transmission_type: string  // Převodovka: Manual, Automatic
-  model_seats: string              // Počet sedadel
-  model_doors: string              // Počet dveří
-  model_weight_kg: string          // Hmotnost kg
-  model_length_mm: string          // Délka mm
-  model_width_mm: string           // Šířka mm
-  model_height_mm: string          // Výška mm
-  model_wheelbase_mm: string       // Rozvor náprav mm
-  model_lkm_hwy: string            // Spotřeba na dálnici l/100km (nebo MPG)
-  model_lkm_mixed: string          // Kombinovaná spotřeba
-  model_lkm_city: string           // Spotřeba ve městě
-  model_fuel_cap_l: string         // Objem palivové nádrže
-  model_sold_in_us: string         // Prodáváno v USA ("1"/"0")
-  model_co2: string                // Emise CO2 g/km
-  model_make_display: string       // Zobrazovaný název výrobce
-}
-
-/** Plné specifikace vozidla z getVehicle */
-export interface CarVehicle extends CarTrim {
-  model_id: string
-}
-
-// ═══════════════════════════════════════════════
-// APLIKAČNÍ TYPY
-// Typy pro interní stav aplikace
-// ═══════════════════════════════════════════════
-
-/** Uložené auto v Firebase (favorites nebo garage) */
-export interface SavedCar {
-  id: string                    // Firestore document ID
-  makeId: string                // Slug výrobce, např. "mercedes-benz"
-  makeDisplay: string           // Zobrazovaný název, např. "Mercedes-Benz"
-  modelName: string             // Název modelu
-  modelYear: string             // Rok
-  trimName: string              // Výbava
-  modelId: string               // CarQuery model_id pro načtení specifikací
-  
-  // Klíčové specifikace (uložené lokálně pro rychlý přístup bez API)
-  powerPs?: number              // Výkon v PS
-  powerKw?: number              // Výkon v kW
-  engineCc?: number             // Objem motoru
-  fuelType?: string             // Typ paliva
-  topSpeedKph?: number          // Max rychlost
-  acceleration?: number         // 0-100 km/h
-  consumptionL100km?: number    // Kombinovaná spotřeba l/100km
-  
-  // Metadata
-  addedAt: number               // Unix timestamp přidání
-  notes?: string                // Uživatelská poznámka
-  imageUrl?: string             // URL obrázku
-}
-
-/** Výsledek porovnání dvou aut */
-export interface CarComparison {
-  car1: SavedCar
-  car2: SavedCar
-}
-
-/** Stav pro vybranou značku/model/rok */
-export interface SelectionState {
-  makeId: string
-  makeDisplay: string
-  modelName: string
-  modelYear: string
-}
-
-/** Theme nastavení */
-export type Theme = 'dark' | 'light'
-
-/** Navigation tab */
-export type NavTab = 'home' | 'favorites' | 'garage'
-
-// ═══════════════════════════════════════════════
-// POMOCNÉ TYPY
-// ═══════════════════════════════════════════════
-
-/** Stav asynchronní operace */
-export type AsyncState<T> = {
-  data: T | null
-  loading: boolean
-  error: string | null
-}
-
-/** CarQuery API wrapper response pro makes */
-export interface CarQueryMakesResponse {
-  Makes: CarMake[]
-}
-
-/** CarQuery API wrapper response pro models */
-export interface CarQueryModelsResponse {
-  Models: CarModel[]
-}
-
-/** CarQuery API wrapper response pro trims */
-export interface CarQueryTrimsResponse {
-  Trims: CarTrim[]
-}
-
-/** CarQuery API wrapper response pro vehicle */
-export interface CarQueryVehicleResponse {
-  Trims: CarVehicle[]
-}
-
-// ═══════════════════════════════════════════════
-// BRAND KONFIGURACE
-// Statická data o podporovaných značkách
-// ═══════════════════════════════════════════════
-
-export interface BrandConfig {
-  id: string                // CarQuery make_id
-  display: string           // Zobrazovaný název
-  country: string           // Země původu
-  founded: number           // Rok založení
-  tagline: string           // Marketingový slogan
-  accentColor: string       // CSS barva pro brand accent
-  logo: string              // SVG logo jako string nebo cesta
-  unsplashQuery: string     // Query pro Unsplash obrázky
+const VEHICLE_SPECS: Record<string, Spec> = {
+  'bmw|3 series|2023': s('BMW', '3 Series', '2023', { model_engine_power_ps: '258', model_lkm_mixed: '6.8', model_lkm_hwy: '5.5', model_lkm_city: '8.2', model_engine_cc: '1998', model_top_speed_kph: '250', model_0_to_100_kph: '5.8', model_drive: 'RWD', model_transmission_type: 'Automatická 8st.' }),
+  'bmw|5 series|2023': s('BMW', '5 Series', '2023', { model_engine_power_ps: '299', model_lkm_mixed: '7.2', model_lkm_hwy: '5.8', model_lkm_city: '9.1', model_engine_cc: '2998', model_top_speed_kph: '250', model_0_to_100_kph: '5.4', model_drive: 'RWD', model_transmission_type: 'Automatická 8st.' }),
+  'bmw|m3|2023': s('BMW', 'M3', '2023', { model_engine_power_ps: '510', model_lkm_mixed: '10.8', model_lkm_hwy: '8.2', model_lkm_city: '14.1', model_engine_cc: '2993', model_top_speed_kph: '290', model_0_to_100_kph: '3.5', model_drive: 'AWD', model_transmission_type: 'Automatická 8st.' }),
+  'bmw|m5|2023': s('BMW', 'M5', '2023', { model_engine_power_ps: '625', model_lkm_mixed: '11.4', model_lkm_hwy: '8.5', model_lkm_city: '15.1', model_engine_cc: '4395', model_top_speed_kph: '305', model_0_to_100_kph: '3.3', model_drive: 'AWD', model_transmission_type: 'Automatická 8st.' }),
+  'bmw|x5|2023': s('BMW', 'X5', '2023', { model_engine_power_ps: '340', model_lkm_mixed: '8.5', model_lkm_hwy: '7.0', model_lkm_city: '10.5', model_engine_cc: '2998', model_top_speed_kph: '250', model_0_to_100_kph: '5.5', model_drive: 'AWD', model_transmission_type: 'Automatická 8st.' }),
+  'bmw|x7|2023': s('BMW', 'X7', '2023', { model_engine_power_ps: '340', model_lkm_mixed: '9.1', model_lkm_hwy: '7.3', model_lkm_city: '11.5', model_engine_cc: '2998', model_top_speed_kph: '250', model_0_to_100_kph: '5.8', model_drive: 'AWD', model_transmission_type: 'Automatická 8st.' }),
+  'mercedes-benz|c-class|2023': s('Mercedes-Benz', 'C-Class', '2023', { model_engine_power_ps: '204', model_lkm_mixed: '6.3', model_lkm_hwy: '5.1', model_lkm_city: '8.0', model_engine_cc: '1496', model_top_speed_kph: '240', model_0_to_100_kph: '7.3', model_drive: 'RWD', model_transmission_type: 'Automatická 9st.' }),
+  'mercedes-benz|e-class|2023': s('Mercedes-Benz', 'E-Class', '2023', { model_engine_power_ps: '258', model_lkm_mixed: '7.0', model_lkm_hwy: '5.5', model_lkm_city: '8.9', model_engine_cc: '1999', model_top_speed_kph: '250', model_0_to_100_kph: '6.0', model_drive: 'RWD', model_transmission_type: 'Automatická 9st.' }),
+  'mercedes-benz|s-class|2023': s('Mercedes-Benz', 'S-Class', '2023', { model_engine_power_ps: '435', model_lkm_mixed: '8.4', model_lkm_hwy: '6.5', model_lkm_city: '10.8', model_engine_cc: '2999', model_top_speed_kph: '250', model_0_to_100_kph: '4.9', model_drive: 'AWD', model_transmission_type: 'Automatická 9st.' }),
+  'mercedes-benz|glc|2023': s('Mercedes-Benz', 'GLC', '2023', { model_engine_power_ps: '204', model_lkm_mixed: '6.8', model_lkm_hwy: '5.5', model_lkm_city: '8.6', model_engine_cc: '1496', model_top_speed_kph: '220', model_0_to_100_kph: '7.6', model_drive: 'AWD', model_transmission_type: 'Automatická 9st.' }),
+  'mercedes-benz|gle|2023': s('Mercedes-Benz', 'GLE', '2023', { model_engine_power_ps: '299', model_lkm_mixed: '8.6', model_lkm_hwy: '6.8', model_lkm_city: '11.0', model_engine_cc: '2999', model_top_speed_kph: '245', model_0_to_100_kph: '6.0', model_drive: 'AWD', model_transmission_type: 'Automatická 9st.' }),
+  'mercedes-benz|amg gt|2023': s('Mercedes-Benz', 'AMG GT', '2023', { model_engine_power_ps: '530', model_lkm_mixed: '11.4', model_lkm_hwy: '8.8', model_lkm_city: '14.9', model_engine_cc: '3982', model_top_speed_kph: '310', model_0_to_100_kph: '3.7', model_drive: 'RWD', model_transmission_type: 'Automatická 7st.' }),
+  'audi|a4|2023': s('Audi', 'A4', '2023', { model_engine_power_ps: '150', model_lkm_mixed: '5.9', model_lkm_hwy: '4.8', model_lkm_city: '7.6', model_engine_cc: '1984', model_top_speed_kph: '237', model_0_to_100_kph: '8.5', model_drive: 'FWD', model_transmission_type: 'Automatická 7st.' }),
+  'audi|a6|2023': s('Audi', 'A6', '2023', { model_engine_power_ps: '204', model_lkm_mixed: '6.5', model_lkm_hwy: '5.2', model_lkm_city: '8.3', model_engine_cc: '1984', model_top_speed_kph: '250', model_0_to_100_kph: '7.4', model_drive: 'AWD', model_transmission_type: 'Automatická 7st.' }),
+  'audi|q5|2023': s('Audi', 'Q5', '2023', { model_engine_power_ps: '204', model_lkm_mixed: '7.2', model_lkm_hwy: '5.8', model_lkm_city: '9.1', model_engine_cc: '1984', model_top_speed_kph: '225', model_0_to_100_kph: '7.5', model_drive: 'AWD', model_transmission_type: 'Automatická 7st.' }),
+  'audi|q7|2023': s('Audi', 'Q7', '2023', { model_engine_power_ps: '249', model_lkm_mixed: '8.2', model_lkm_hwy: '6.5', model_lkm_city: '10.5', model_engine_cc: '1984', model_top_speed_kph: '237', model_0_to_100_kph: '6.9', model_drive: 'AWD', model_transmission_type: 'Automatická 8st.' }),
+  'audi|rs6|2023': s('Audi', 'RS6', '2023', { model_engine_power_ps: '600', model_lkm_mixed: '11.7', model_lkm_hwy: '8.8', model_lkm_city: '15.3', model_engine_cc: '3996', model_top_speed_kph: '305', model_0_to_100_kph: '3.4', model_drive: 'AWD', model_transmission_type: 'Automatická 8st.' }),
+  'audi|r8|2023': s('Audi', 'R8', '2023', { model_engine_power_ps: '620', model_lkm_mixed: '13.5', model_lkm_hwy: '10.5', model_lkm_city: '17.2', model_engine_cc: '5204', model_top_speed_kph: '331', model_0_to_100_kph: '3.1', model_drive: 'AWD', model_transmission_type: 'Automatická 7st.' }),
 }

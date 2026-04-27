@@ -1,211 +1,372 @@
-/* src/index.css */
-/* Globální styly pro AutoGaráž */
-/* Tailwind CSS direktivy – musí být na začátku */
+/* ╔══════════════════════════════════════════════════════════════════════════════╗
+   ║  src/index.css                                                               ║
+   ║  Globální styly pro AutoGaráž                                                ║
+   ║                                                                              ║
+   ║  Tento soubor je rozdělen do sekcí:                                          ║
+   ║  1. Tailwind direktivy (MUSÍ být první)                                      ║
+   ║  2. @layer base   – reset, globální HTML/body styly, scrollbar               ║
+   ║  3. @layer components – znovupoužitelné CSS třídy (.card, .btn-primary...)   ║
+   ║  4. @layer utilities – pomocné třídy (.glass, .noise, .text-gradient-gold)  ║
+   ║  5. Page transitions – animace přechodů stran                                ║
+   ║  6. Light mode override – přepsání barev pro světlý režim                   ║
+   ║                                                                              ║
+   ║  Jak přidat nový styl?                                                       ║
+   ║  → Do @layer components pokud je to UI komponenta (.btn-xyz, .card-xyz)     ║
+   ║  → Do @layer utilities pokud je to jednorázová helper třída                 ║
+   ╚══════════════════════════════════════════════════════════════════════════════╝ */
 
+/* ── TAILWIND DIREKTIVY ────────────────────────────────────────────────────────
+   Tyto 3 řádky MUSÍ být úplně nahoře. Říkají Tailwindu, aby sem vložil
+   svoje výchozí styly (base), třídy komponent a utility třídy.
+   Bez nich by bg-garage-bg, text-white/40 a podobné třídy nefungovaly. */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* ═══════════════════════════════════════════════
-   BASE RESET & GLOBAL STYLES
-   ═══════════════════════════════════════════════ */
+/* ══════════════════════════════════════════════════════════════════════════════
+   SEKCE 1: BASE RESET & GLOBÁLNÍ STYLY
+   Co je @layer base? Tailwind sem vloží css reset. My přidáme naše globální
+   úpravy které platí pro celý dokument.
+   ══════════════════════════════════════════════════════════════════════════════ */
 @layer base {
+
+  /* Platí pro KAŽDÝ element na stránce (* = universal selector) */
   * {
     box-sizing: border-box;
-    -webkit-tap-highlight-color: transparent; /* Odstraní modré zvýraznění při tapu na mobilu */
+    /* ↑ Při zadání width: 100px se do šířky POČÍTÁ i padding a border.
+       Výchozí CSS chování je content-box = 100px je jen obsah, padding se přičítá navíc.
+       border-box je modernější a předvídatelnější – NIKDY to nezměnil. */
+
+    -webkit-tap-highlight-color: transparent;
+    /* ↑ Na mobilních zařízeních (iOS/Android) prohlížeč při kliknutí/tapnutí
+       zobrazuje modrou obdélníkovou flaši přes element.
+       Toto ji úplně vypíná – naše tlačítka mají vlastní active:scale-95 efekty. */
   }
 
   html {
-    /* Smooth scrolling pro celou aplikaci */
     scroll-behavior: smooth;
-    /* Bezpečná zóna pro notche (iPhone X+) */
+    /* ↑ Když se uživatel přesune na anchor (#sekce) nebo programaticky zavolá
+       scrollTo(), prohlížeč plynule animuje scroll místo okamžitého skoku. */
+
     padding: env(safe-area-inset-top) env(safe-area-inset-right) 0 env(safe-area-inset-left);
+    /* ↑ env(safe-area-inset-*) jsou CSS proměnné, které prohlížeč na iPhone X+
+       automaticky vyplní velikostí notche (průstřelu kamery) a home baru.
+       Tím zajistíme, že obsah nekryje notch nebo rohy zaoblených displejů. */
   }
 
   body {
-    /* Zabrání horizontálnímu scrollování */
     overflow-x: hidden;
-    /* Výchozí tmavé pozadí */
+    /* ↑ Zakáže horizontální scroll celé stránky. Bez toho by animace a absolutně
+       pozicované prvky mohly způsobit posuvník vpravo. */
+
     background-color: #0a0a0a;
+    /* ↑ VÝCHOZÍ BARVA POZADÍ (záloha pokud se Tailwind nestihne načíst).
+       Je stejná jako garage.bg v tailwind.config.js */
+
     color: #ffffff;
+    /* ↑ Výchozí barva textu = bílá. Tailwind přepíše kde potřeba (text-white/40 atp.) */
   }
 
-  /* Scrollbar styling pro webkit prohlížeče */
+  /* ── SCROLLBAR STYLING ──────────────────────────────────────────────────────
+     Funguje pouze ve webkit prohlížečích (Chrome, Edge, Safari).
+     Firefox má jiné API (scrollbar-color: přímo na elementu). */
+
   ::-webkit-scrollbar {
-    width: 4px;
+    width: 4px;  /* ← Šířka scrollbaru – 4px je velmi tenký (skoro neviditelný) */
   }
   ::-webkit-scrollbar-track {
-    background: #141414;
+    background: #141414;  /* ← Pozadí "lišty" scrollbaru = stejné jako garage.surface */
   }
   ::-webkit-scrollbar-thumb {
-    background: #3a3a3a;
-    border-radius: 2px;
+    background: #3a3a3a;  /* ← "Palec" (pohyblivá část) scrollbaru = garage.muted */
+    border-radius: 2px;   /* ← Mírně zaoblené rohy scrollbar palce */
   }
   ::-webkit-scrollbar-thumb:hover {
-    background: #c9a84c;
+    background: #c9a84c;  /* ← Zlatá barva (accent.gold) při najetí na scrollbar */
   }
 }
 
-/* ═══════════════════════════════════════════════
-   KOMPONENTY
-   ═══════════════════════════════════════════════ */
+/* ══════════════════════════════════════════════════════════════════════════════
+   SEKCE 2: ZNOVUPOUŽITELNÉ KOMPONENTY
+   @apply = vezmi Tailwind třídy a vlož jejich CSS sem (jako mixiny v SCSS).
+   Výhoda: napíšeš .card jednou a pak ji používáš v JSX jako className="card".
+   ══════════════════════════════════════════════════════════════════════════════ */
 @layer components {
 
-  /* Základní karta */
+  /* ── .card ──────────────────────────────────────────────────────────────────
+     Základní tmavá karta. Používá se na celé aplikaci jako obal pro sekce.
+     Příklad: <div className="card p-4">...</div> */
   .card {
-    @apply bg-garage-surface rounded-2xl border border-garage-border shadow-card;
+    @apply bg-garage-surface    /* tmavé pozadí (#141414) */
+           rounded-2xl          /* zaoblené rohy 1rem (16px) */
+           border               /* zobrazí rámeček */
+           border-garage-border /* barva rámečku (#2a2a2a) */
+           shadow-card;         /* jemný tmavý stín (definovaný v tailwind.config.js) */
   }
 
-  /* Karta s hover efektem */
+  /* ── .card-hover ────────────────────────────────────────────────────────────
+     Karta s hover efektem – pro klikatelné karty (modely, výbavy, oblíbená auta).
+     Dědí vše z .card a přidává přechody při najetí myší.
+     Příklad: <button className="card-hover p-4">Klikni</button> */
   .card-hover {
-    @apply card transition-all duration-300 hover:border-accent-gold/30 hover:shadow-card-hover hover:-translate-y-1;
+    @apply card                        /* vše z .card výše */
+           transition-all              /* animuje VŠECHNY CSS vlastnosti */
+           duration-300                /* animace trvá 300ms */
+           hover:border-accent-gold/30 /* při hover: zlatý rámeček s 30% průhledností */
+           hover:shadow-card-hover     /* při hover: výraznější stín */
+           hover:-translate-y-1;       /* při hover: karta se zdvihne o 4px nahoru */
   }
 
-  /* Primární tlačítko – zlaté */
+  /* ── .btn-primary ───────────────────────────────────────────────────────────
+     ZLATÉ PRIMÁRNÍ TLAČÍTKO – hlavní CTA akce v aplikaci.
+     Použití: <button className="btn-primary">Do garáže</button>
+     ↓ Chceš změnit barvu? Změň accent.gold v tailwind.config.js */
   .btn-primary {
-    @apply bg-accent-gold text-black font-semibold px-6 py-3 rounded-xl
-           transition-all duration-200 active:scale-95
-           hover:bg-accent-gold-light hover:shadow-gold;
+    @apply bg-accent-gold           /* zlaté pozadí (#c9a84c) */
+           text-black               /* černý text (kontrastní na zlaté) */
+           font-semibold            /* tučnější písmo */
+           px-6 py-3               /* horizontální padding 1.5rem, vertikální 0.75rem */
+           rounded-xl              /* zaoblené rohy 0.75rem */
+           transition-all          /* animuje všechny vlastnosti */
+           duration-200            /* 200ms = rychlá odezva */
+           active:scale-95         /* při kliknutí tlačítko "zmáčkne" na 95% velikosti */
+           hover:bg-accent-gold-light  /* při hover: světlejší zlatá (#e8c76a) */
+           hover:shadow-gold;          /* při hover: zlatý záblesk kolem tlačítka */
   }
 
-  /* Sekundární tlačítko – outline */
+  /* ── .btn-secondary ─────────────────────────────────────────────────────────
+     Sekundární tlačítko – tmavé s rámečkem. Pro méně důležité akce.
+     Použití: <button className="btn-secondary">Zkusit znovu</button> */
   .btn-secondary {
-    @apply border border-garage-border text-white/80 font-medium px-6 py-3 rounded-xl
-           transition-all duration-200 active:scale-95 bg-garage-elevated
-           hover:border-accent-gold/50 hover:text-white;
+    @apply border                  /* zobrazí rámeček */
+           border-garage-border    /* tmavý rámeček (#2a2a2a) */
+           text-white/80           /* bílý text s 80% průhledností */
+           font-medium             /* středně tučné */
+           px-6 py-3              /* stejný padding jako btn-primary */
+           rounded-xl             /* zaoblené rohy */
+           transition-all         /* animace všech vlastností */
+           duration-200           /* 200ms */
+           active:scale-95        /* zmáčknutí při kliknutí */
+           bg-garage-elevated     /* tmavé pozadí (#1e1e1e) */
+           hover:border-accent-gold/50  /* při hover: zlatý rámeček 50% průhledný */
+           hover:text-white;            /* při hover: plně bílý text */
   }
 
-  /* Ikona tlačítko */
+  /* ── .btn-icon ──────────────────────────────────────────────────────────────
+     Malé čtvercové tlačítko pro ikony (šipka zpět, X zavřít apod.). */
   .btn-icon {
-    @apply p-2 rounded-xl transition-all duration-200 active:scale-90
-           hover:bg-garage-elevated;
+    @apply p-2                 /* padding 0.5rem ze všech stran */
+           rounded-xl          /* zaoblené rohy */
+           transition-all      /* animace */
+           duration-200        /* 200ms */
+           active:scale-90     /* při kliknutí se zmáčkne více (90%) než btn-primary */
+           hover:bg-garage-elevated; /* při hover: tmavé pozadí */
   }
 
-  /* Sekce nadpis */
+  /* ── .section-title ─────────────────────────────────────────────────────────
+     Velký nadpis sekcí (AUTOGARÁŽ, MÁ GARÁŽ, OBLÍBENÁ).
+     Používá Bebas Neue font. Velká písmena, sledování písmen. */
   .section-title {
-    @apply font-display text-3xl tracking-widest uppercase text-white;
+    @apply font-display        /* Bebas Neue font */
+           text-3xl            /* velikost textu 1.875rem */
+           tracking-widest     /* velké mezery mezi písmeny (letter-spacing) */
+           uppercase           /* automaticky velká písmena */
+           text-white;         /* bílá barva */
   }
 
-  /* Badge/chip */
+  /* ── .badge ─────────────────────────────────────────────────────────────────
+     Malý štítek/tag pro technické hodnoty (rok, typ karoserie apod.). */
   .badge {
-    @apply text-xs font-mono px-2 py-1 rounded-md bg-garage-elevated border border-garage-border text-accent-silver;
+    @apply text-xs              /* velmi malý text */
+           font-mono            /* JetBrains Mono – monospace */
+           px-2 py-1           /* malý padding */
+           rounded-md          /* mírně zaoblené rohy */
+           bg-garage-elevated  /* tmavé pozadí (#1e1e1e) */
+           border              /* rámeček */
+           border-garage-border /* tmavý rámeček (#2a2a2a) */
+           text-accent-silver; /* stříbrný text (#94a3b8) */
   }
 
-  /* Bottom navigation výška (pro padding obsahu) */
+  /* ── .content-with-nav ──────────────────────────────────────────────────────
+     Padding dole, aby obsah nevyčníval ZA fixní bottom navigaci.
+     Bottom nav má výšku cca 64px + safe area iOS. pb-24 = 6rem = 96px (bezpečně). */
   .content-with-nav {
-    @apply pb-24; /* 96px padding dole = prostor pro fixed bottom nav */
+    @apply pb-24; /* padding-bottom: 6rem = 96px – prostor pro fixed bottom nav */
   }
 
-  /* Shimmer loading efekt */
+  /* ── .skeleton ──────────────────────────────────────────────────────────────
+     Placeholder pro loading stav – šedý obdélník s animovaným světlem.
+     Použití: <div className="skeleton h-40" /> místo obrázku při načítání. */
   .skeleton {
-    @apply bg-garage-elevated rounded-xl overflow-hidden;
+    @apply bg-garage-elevated  /* tmavé pozadí jako základ */
+           rounded-xl          /* zaoblené rohy */
+           overflow-hidden;    /* schová přetékající gradient */
+
+    /* Gradient který simuluje "přejíždějící světlo" */
     background: linear-gradient(
-      90deg,
-      #1e1e1e 25%,
-      #2a2a2a 50%,
-      #1e1e1e 75%
+      90deg,           /* zleva doprava */
+      #1e1e1e 25%,     /* tmavší šedá (garage.elevated) */
+      #2a2a2a 50%,     /* světlejší šedá (garage.border) – toto je "světlo" */
+      #1e1e1e 75%      /* zpět na tmavou */
     );
-    background-size: 200% 100%;
-    animation: shimmer 1.5s infinite;
+    background-size: 200% 100%; /* gradient je 2x širší – animace ho posouvá */
+    animation: shimmer 1.5s infinite; /* animace definovaná v tailwind.config.js */
   }
 
-  /* Zlatá linka pro zvýraznění */
+  /* ── .gold-line ─────────────────────────────────────────────────────────────
+     Vodorovná zlatá linka pro dekorativní oddělení sekcí.
+     Výška 1px, gradient fade od transparent → zlatá → transparent.
+     Použití: <div className="gold-line mx-4 mb-6" /> */
   .gold-line {
-    @apply h-px bg-gradient-to-r from-transparent via-accent-gold to-transparent;
+    @apply h-px                    /* výška 1 pixel */
+           bg-gradient-to-r        /* gradient zleva doprava */
+           from-transparent        /* začíná průhledně */
+           via-accent-gold         /* uprostřed zlatá (#c9a84c) */
+           to-transparent;         /* končí průhledně */
   }
 
-  /* Spec tabulka řádek */
+  /* ── .spec-row / .spec-label / .spec-value ──────────────────────────────────
+     Řádek v tabulce technických specifikací (CarDetailPage).
+     spec-row: celý řádek (label vlevo, hodnota vpravo)
+     spec-label: popis (šedý text)
+     spec-value: hodnota (bílý monospacový text) */
   .spec-row {
-    @apply flex justify-between items-center py-3 border-b border-garage-border/50
-           last:border-b-0;
+    @apply flex                    /* flex = vedle sebe */
+           justify-between         /* label vlevo, hodnota vpravo */
+           items-center            /* vertikálně na střed */
+           py-3                    /* padding nahoře/dole 0.75rem */
+           border-b               /* linka dole */
+           border-garage-border/50 /* 50% průhledná tmavá linka */
+           last:border-b-0;        /* POSLEDNÍ řádek nemá linku dole */
   }
   .spec-label {
-    @apply text-sm text-white/50 font-body;
+    @apply text-sm        /* text 0.875rem */
+           text-white/50  /* bílá s 50% průhledností = tmavě šedá */
+           font-body;     /* DM Sans font */
   }
   .spec-value {
-    @apply text-sm font-mono font-medium text-white;
+    @apply text-sm         /* text 0.875rem */
+           font-mono        /* JetBrains Mono – čísla zarovnaná */
+           font-medium      /* středně tučné */
+           text-white;      /* plně bílá (kontrastní vůči labelu) */
   }
 }
 
-/* ═══════════════════════════════════════════════
-   UTILITY TŘÍDY
-   ═══════════════════════════════════════════════ */
+/* ══════════════════════════════════════════════════════════════════════════════
+   SEKCE 3: UTILITY TŘÍDY
+   Jednorázové helper třídy pro speciální efekty.
+   ══════════════════════════════════════════════════════════════════════════════ */
 @layer utilities {
 
-  /* Bezpečná zóna pro spodní nav na iOS */
+  /* ── .pb-safe ───────────────────────────────────────────────────────────────
+     Padding dole respektující iOS home bar (u iPhone bez home tlačítka).
+     env(safe-area-inset-bottom) = systémová proměnná s výškou home baru.
+     Přidáme 5rem (80px) jako minimum pro bottom nav. */
   .pb-safe {
     padding-bottom: calc(env(safe-area-inset-bottom) + 5rem);
+    /* calc() umí kombinovat různé jednotky: px + rem + env() */
   }
 
-  /* Gradient text */
+  /* ── .text-gradient-gold ────────────────────────────────────────────────────
+     Zlatý gradient text (např. "Garáž" v nadpisu AutoGaráž).
+     Funguje na webkit i moderních prohlížečích.
+     Použití: <span className="text-gradient-gold">Garáž</span> */
   .text-gradient-gold {
     background: linear-gradient(135deg, #c9a84c, #e8c76a, #a07830);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
+    /* ↑ Diagonální gradient: tmavá zlatá → světlá zlatá → bronzová */
+    /* 135deg = levý horní roh k pravému dolnímu */
+
+    -webkit-background-clip: text; /* Gradient se "ořízne" podle tvaru textu (Safari) */
+    -webkit-text-fill-color: transparent; /* Samotný text je průhledný – vidíme gradient (Safari) */
+    background-clip: text; /* Stejné pro moderní prohlížeče */
   }
 
-  /* Glassmorphism efekt */
+  /* ── .glass ─────────────────────────────────────────────────────────────────
+     Glassmorphism efekt – poloprůhledný panel s rozmazaným pozadím za ním.
+     Používá se pro bottom navigaci.
+     Efekt: "mléčné sklo" přes pozadí. */
   .glass {
     background: rgba(20, 20, 20, 0.85);
+    /* ↑ #141414 = garage.surface ale jen z 85% neprůhledný */
+
     backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
+    /* ↑ Rozmaže vše ZA tímto elementem o 20px. Klíčový efekt glassmorphismu. */
+    -webkit-backdrop-filter: blur(20px); /* Safari verze */
   }
 
-  /* Noise texture overlay */
+  /* ── .noise ─────────────────────────────────────────────────────────────────
+     Jemná šumová textura přes celou stránku (subtilní "papírový" efekt).
+     Používá se na hlavním div v App.tsx: className="bg-garage-bg noise".
+     Implementace: pseudo-element ::after s SVG noise filtrem jako pozadí.
+     Opacity 0.03 = velmi jemné, sotva viditelné. */
   .noise {
-    position: relative;
+    position: relative; /* Nutné pro absolutní pozicování ::after pseudo-elementu */
   }
   .noise::after {
-    content: '';
-    position: absolute;
-    inset: 0;
+    content: '';         /* Prázdný obsah – jen vizuální efekt */
+    position: absolute;  /* Překrývá celý rodičovský element */
+    inset: 0;            /* top:0, right:0, bottom:0, left:0 = celý element */
+
+    /* SVG inline jako data URI – generuje frakcionální šum (Perlin noise) */
     background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
-    pointer-events: none;
-    border-radius: inherit;
+    /* ↑ feTurbulence = SVG filter pro šum, opacity='0.03' = 3% viditelnost */
+
+    pointer-events: none; /* Klikání skrz – .noise::after nepřebírá mouse eventy */
+    border-radius: inherit; /* Zaoblené rohy jako rodičovský element */
   }
 }
 
-/* ═══════════════════════════════════════════════
-   PŘECHODY STRAN (Page transitions)
-   ═══════════════════════════════════════════════ */
+/* ══════════════════════════════════════════════════════════════════════════════
+   SEKCE 4: PŘECHODY STRAN (Page transitions)
+   Třídy pro React Transition Group nebo manuální animace stránek.
+   Stránka se "vynoří" (fade + slide up) při přechodu.
+   ══════════════════════════════════════════════════════════════════════════════ */
+
 .page-enter {
-  opacity: 0;
-  transform: translateY(16px);
+  opacity: 0;                  /* Nová stránka začíná neviditelná */
+  transform: translateY(16px); /* A je 16px dolu */
 }
 .page-enter-active {
-  opacity: 1;
-  transform: translateY(0);
-  transition: opacity 0.3s ease, transform 0.3s ease;
+  opacity: 1;                  /* Přejde na viditelnou */
+  transform: translateY(0);    /* A na správnou pozici */
+  transition: opacity 0.3s ease, transform 0.3s ease; /* Za 0.3s plynule */
 }
 .page-exit {
-  opacity: 1;
+  opacity: 1; /* Odcházející stránka začíná viditelná */
 }
 .page-exit-active {
-  opacity: 0;
+  opacity: 0; /* Mizí za 0.2s */
   transition: opacity 0.2s ease;
 }
 
-/* ═══════════════════════════════════════════════
-   LIGHT MODE OVERRIDE
-   (výchozí je dark, light mode se aktivuje odebrá- 
-    ním třídy 'dark' z <html>)
-   ═══════════════════════════════════════════════ */
+/* ══════════════════════════════════════════════════════════════════════════════
+   SEKCE 5: LIGHT MODE OVERRIDE
+   Výchozí je TMAVÝ režim. Light mode se aktivuje odebráním třídy 'dark' z <html>.
+   Viz AppContext.tsx: toggleTheme() → html.classList.remove('dark')
+
+   CSS proměnné (--bg, --surface...) přepíší tmavé hodnoty světlými.
+   POZOR: Tailwind třídy jako bg-garage-surface se nepřepíší automaticky.
+   Tyto overrides cílí přímo na .card a .card-hover třídy.
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+/* Světlé CSS proměnné – aktivní když chybí třída 'dark' na <html> */
 html:not(.dark) {
-  --bg: #f5f5f0;
-  --surface: #ffffff;
-  --elevated: #f0f0eb;
-  --border: #e0e0d8;
-  --text: #0a0a0a;
+  --bg:       #f5f5f0; /* Krémová off-white = pozadí stránky ve světlém režimu */
+  --surface:  #ffffff; /* Čistě bílá = pozadí karet */
+  --elevated: #f0f0eb; /* Lehce šedivá = zvýšené plochy */
+  --border:   #e0e0d8; /* Světle šedá = rámečky */
+  --text:     #0a0a0a; /* Skoro černá = text (invertované od tmavého módu) */
 }
 
+/* Přepsání těla stránky ve světlém režimu */
 html:not(.dark) body {
-  background-color: var(--bg);
-  color: var(--text);
+  background-color: var(--bg);   /* Použije --bg = #f5f5f0 */
+  color: var(--text);            /* Použije --text = #0a0a0a */
 }
 
+/* Přepsání karet ve světlém režimu */
 html:not(.dark) .card,
 html:not(.dark) .card-hover {
-  background-color: var(--surface);
-  border-color: var(--border);
+  background-color: var(--surface); /* Bílá karta */
+  border-color: var(--border);      /* Světle šedý rámeček */
 }
